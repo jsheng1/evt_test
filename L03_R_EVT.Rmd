@@ -1,0 +1,111 @@
+```{r}
+library(extRemes)
+library(evd)
+
+```
+
+```{r}
+data(Fort)
+head(Fort)
+tail(Fort)
+
+```
+
+```{r}
+# find annual max precipitation
+t <- c(rep(1:365, 4)/365, rep(c((1:366)/366,rep((1:365)/365, 3)), 24))
+plot(t + Fort$year, Fort$Prec, type = "l",
+     xlab = "Year", ylab = "Max precipation")
+
+days_in_yr <- c(rep(365, 4), rep(c(366, rep(365, 3)), 24))
+
+annmax <- aggregate(Fort$Prec, by = list(Fort$year), max)
+
+#the timing of annual max
+annmax_t <- aggregate(Fort$Prec, by = list(Fort$year), function(z){
+  which(z == max(z))[1]
+})
+
+max_t <- annmax_t[ ,2]/days_in_yr + 1900:1999
+points(max_t, annmax[ ,2], col = "red", cex = log(annmax[ ,2])/100+1)
+
+```
+
+```{r}
+fit_mle <- fevd(annmax[ ,2], method = "MLE", type="GEV")
+fit_mle
+
+```
+
+---
+### Akaike information criterion (AIC) & Bayesian information criterion (BIC)
+Both are a function of the max value of the likelihood function and lower values are generally preferred
+---
+
+```{r}
+plot(fit_mle, type='probprob')
+plot(fit_mle, type='qq')
+```
+
+```{r}
+rl_mle <- return.level(fit_mle, conf = 0.05, return.period= c(2,5,10,20,50,100))
+rl_mle
+```
+
+```{r}
+plot(fit_mle, type="rl",
+     main="Return Level",
+     ylim=c(0,10), pch=16)
+loc <- as.numeric(return.level(fit_mle, conf = 0.05, return.period=50))
+segments(50, 0, 50, loc, col= 'red')
+```
+
+##How to choose the threshold?
+
+```{r}
+# mean residual life plot
+mrlplot(Fort$Prec)
+```
+
+```{r}
+threshrange.plot(x = Fort$Prec, r = c(1,2))
+```
+
+```{r, fig.width=4, fig.height=4}
+thres=1
+GPfit <- fevd(Fort$Prec, threshold = thres, type = "GP")
+GPfit
+plot(GPfit)
+
+CI_delta <- ci(GPfit, return.period = 50, verbose = T) 
+CI_delta 
+```
+
+
+```{r, fig.width=4, fig.height=4}
+thres=2
+GPfit1 <- fevd(Fort$Prec, threshold = thres, type = "GP")
+GPfit1
+plot(GPfit1)
+
+CI_delta <- ci(GPfit1, return.period = 50, verbose = T) 
+CI_delta 
+```
+
+
+## Decluster
+
+```{r}
+data(FCwx)
+declus <- decluster(FCwx$Prec, threshold = 100, clusterfun='max')
+plot(declus)
+GPfit2 <- fevd(declus, threshold = 100, type = "GP")
+plot(GPfit2, type = 'probprob')
+```
+
+```{r, fig.width=4, fig.height=4}
+plot(GPfit2)
+
+CI_delta2 <- ci(GPfit2, return.period = 50, verbose = T) 
+CI_delta2 
+```

@@ -1,0 +1,73 @@
+---
+title: "R Notebook: EVT basics"
+output: html_notebook
+---
+
+
+```{r}
+library(extRemes)
+library(evd)
+
+```
+
+### GEV distribution
+
+```{r}
+z<-seq(0,10,0.1)
+g1<-dgumbel(z, 1, 0.5)
+
+plot(z,g1)
+
+curve(dgev(x,loc=1,scale=0.5,shape=0), from = min(z), to = max(z), add = TRUE, col = "red")
+
+#homework: try frechet and webull
+#dfrechet()
+#dweibull()
+
+```
+
+```{r}
+data(Fort)
+head(Fort)
+tail(Fort)
+
+```
+
+
+
+```{r}
+# find annual max precipitation
+t <- c(rep(1:365, 4)/365, rep(c((1:366)/366,rep((1:365)/365, 3)), 24))
+plot(t + Fort$year, Fort$Prec, type = "l",
+     xlab = "Year", ylab = "Max precipation")
+
+days_in_yr <- c(rep(365, 4), rep(c(366, rep(365, 3)), 24))
+
+annmax <- aggregate(Fort$Prec, by = list(Fort$year), max)
+
+#the timing of annual max
+annmax_t <- aggregate(Fort$Prec, by = list(Fort$year), function(z){
+  which(z == max(z))[1]
+})
+
+max_t <- annmax_t[ ,2]/days_in_yr + 1900:1999
+points(max_t, annmax[ ,2], col = "red", cex = log(annmax[ ,2])/100+1)
+
+```
+
+
+```{r}
+fit_mle <- fevd(annmax[ ,2], method = "MLE", type="GEV")
+fit_mle
+
+# homework: what if you choose monthly max instead of annual max?
+
+```
+
+---
+### Akaike information criterion (AIC) & Bayesian information criterion (BIC)
+Both are a function of the max value of the likelihood function and lower values are generally preferred
+
+We will discuss diagnostics in details next time!
+---
+

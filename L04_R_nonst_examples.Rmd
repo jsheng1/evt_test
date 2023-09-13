@@ -1,0 +1,63 @@
+---
+title: "R EVT - Nonstationary/covariates"
+output: html_notebook
+---
+
+```{r}
+library(extRemes)
+library(evd)
+
+data(FCwx)
+plot(1:36524, FCwx$Prec, type = "l",
+     xlab = "Year", ylab = "Daily Precip (1/100 in)",
+     xaxt = "n")
+yr <- c(rep(365, 3), rep(c(366, 365, 365, 365), 24))
+tobs <- c(rep(1:365, 4), rep(c((1:366),rep((1:365), 3)), 24))
+axis(1, at = cumsum(yr)[seq(1, 100, len = 10)], 
+     label = seq(1, 100, len = 10) + 1900)
+#Threshold exceedances
+thres <- 40
+ex <- FCwx$Prec[FCwx$Prec >= thres]
+#Extract the timing of POT
+ex_t <- which(FCwx$Prec >= thres)
+abline(h = thres, col = "blue", lty = 2)
+points(ex_t, ex, col = "blue", pch = 16,
+       cex = log(ex/100 + 1))
+```
+```{r}
+gpdfit1 <- fevd(FCwx$Prec, threshold = thres, type = "GP")
+
+gpdfit2 <- fevd(FCwx$Prec, threshold = thres, 
+                scale.fun = ~ cos(2 * pi * tobs / 365.25) + sin(2 * pi * tobs / 365.25), type = "GP", use.phi = TRUE) # use.phi: use log of the scale parameter
+
+gpdfit1
+gpdfit2
+```
+
+# Likelihood-ratio Test
+lr.test(x,y)
+Each can be either an object of class “fevd” (provided the fit method is MLE
+or GMLE) or a single numeric giving the negative log-likelihod value for each
+model. x should be the model with fewer parameters, but if both x and y are
+“fevd” objects, then the order does not matter (it will be determined from which
+model has more parameters).
+
+
+```{r}
+lr.test(gpdfit1, gpdfit2)
+```
+
+
+```{r}
+data("PORTw")
+head(PORTw)
+
+```
+
+```{r}
+fevd(TMX1, PORTw, location.fun= ~ AOindex + STDTMAX, scale.fun = ~ STDTMAX)
+```
+
+
+
+

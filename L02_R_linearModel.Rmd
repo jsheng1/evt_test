@@ -1,0 +1,83 @@
+```{r}
+data('airquality')
+airquality
+airquality=airquality[complete.cases(airquality),]
+summary(airquality)
+
+plot(airquality$Ozone)
+```
+
+## Anova
+
+```{r}
+model <- lm(Ozone ~ Solar.R + Wind + Temp + Month + Day, data = airquality)
+
+model
+summary(model)
+
+```
+
+---
+## Diagnostic
+- Residuals vs Fitted. Used to check the linear relationship assumptions. A horizontal line, without distinct patterns is an indication for a linear relationship, what is good.
+
+- Normal Q-Q. Used to examine whether the residuals are normally distributed. It’s good if residuals points follow the straight dashed line.
+
+- Scale-Location (or Spread-Location). Used to check the homogeneity of variance of the residuals (homoscedasticity). Horizontal line with equally spread points is a good indication of homoscedasticity. 
+
+- Residuals vs Leverage. Used to identify influential cases, that is extreme values that might influence the regression results when included or excluded from the analysis.
+
+---
+
+```{r, fig.width=8, fig.height=8}
+par(mfrow = c(2, 2))
+plot(model,)
+```
+
+---
+### Cook's distance to determine the influence of a value.
+This metric defines influence as a combination of leverage and residual size.
+---
+
+```{r}
+plot(model, 4)
+```
+
+
+#homework:
+1. What can you do to improve the model? 
+2. Y = beta*X + e with X=[1,X1,X2,X3,...], what do you think if we
+- add X1 in X so that X=[1,X1,X1,X2,X3,...]
+- repeat each sample twice 
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+a1=airquality
+a1$Temp1=a1$Temp
+model1 <- lm(Ozone ~ Solar.R + Wind + Temp + Temp1 + Month + Day, data = a1)
+model1
+summary(model1)
+```
+
+
+```{r}
+a2=rbind(airquality,airquality)
+a2
+model2 <- lm(Ozone ~ Solar.R + Wind + Temp + Month + Day, data = a2)
+model2
+summary(model2)
+```
+
+
+
+

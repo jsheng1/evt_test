@@ -1,0 +1,282 @@
+---
+title: "Introduction to R - Array, Matrix, List, basic functions, random number, basic statistics"
+output: html_notebook
+---
+
+
+```{r}
+## Matrices
+(A  <- matrix(1:12, ncol = 4)) # watch out, R operates on/fills by columns (column-major order)
+(A. <- matrix(1:12, ncol = 4, byrow = TRUE)) # fills matrix row-wise
+(B <- rbind(1:4, 5:8, 9:12)) # row bind
+(C <- cbind(1:3, 4:6, 7:9, 10:12)) # column bind
+stopifnot(identical(A, C), identical(A., B)) # check whether the constructions are identical
+cbind(1:3, 5) # recycling
+#(A <- outer(1:4, 1:5, FUN = pmin)) # (4,5)-matrix with (i,j)th element min{i, j}
+## => Lower triangular matrix contains column number, upper triangular matrix contains row number
+
+```
+
+```{r}
+## Some functions
+nrow(A) # number of rows
+ncol(A) # number of columns
+dim(A) # dimension
+diag(A) # diagonal of A
+diag(3) # identity (3, 3)-matrix
+(D <- diag(1:3)) # diagonal matrix with elements 1, 2, 3
+D %*% B # matrix multiplication
+B * B # element-wise product
+```
+
+```{r}
+## Build a covariance matrix, its correlation matrix and inverse
+L <- matrix(c(2, 0, 0,
+              6, 1, 0,
+             -8, 5, 3), ncol = 3, byrow = TRUE) # Cholesky factor of the ...
+Sigma <- L %*% t(L) # ... real, symmetric, positive definite (covariance) matrix Sigma
+standardize <- Vectorize(function(r, c) Sigma[r,c]/(sqrt(Sigma[r,r])*sqrt(Sigma[c,c])))
+(P <- outer(1:3, 1:3, standardize)) # construct the corresponding correlation matrix
+stopifnot(all.equal(P, cov2cor(Sigma))) # a faster way
+P.inv <- solve(P) # compute P^{-1}; solve(A, b) solves Ax = b (system of linear equations); if b is omitted, it defaults to I, thus leading to A^{-1}
+P %*% P.inv # (numerically close to) I
+P.inv %*% P # (numerically close to) I
+## Another useful function is Matrix::nearPD(Sigma, corr = TRUE) which finds a
+## correlation matrix close to the given matrix in the Frobenius norm.
+```
+
+```{r}
+## Other useful functions
+rowSums(A) # row sums
+apply(A, 1, sum) # the same
+colSums(A) # column sums
+apply(A, 2, sum) # the same
+## Note that there are also faster functions .rowSums(), .colSums()
+
+## Matrices are only vectors with attributes to determine when to 'wrap around'
+#matrix(, nrow = 1e6, ncol = 1e6) # fails to allocate a *vector* of length 1e12
+
+## Array (data structure which contains objects of the same mode)
+## Special cases: vectors (1d-arrays) and matrices (2d-arrays)
+arr <- array(1:24, dim = c(2,3,4),
+             dimnames = list(x = c("x1", "x2"),
+                             y = c("y1", "y2", "y3"),
+                             z = paste("z", 1:4, sep = ""))) # (2,3,4)-array with dimensions (x,y,z)
+arr # => also filled in the first dimension first, then the second, then the third
+str(arr) # use str() to the *str*ucture of the object arr
+arr[1,2,2] # pick out a value
+(mat <- apply(arr, 1:2, FUN = sum)) # for each combination of fixed first and second variables, sum over all other dimensions
+```
+
+### Lists (including data frames)
+
+```{r}
+
+## Data frames are rectangular objects containing objects of possibly different
+## type of the same length
+(df <- data.frame(Year = as.factor(c(2000, 2000, 2000, 2001, 2003, 2003, 2003)), # loss year
+                  Line = c("A", "A", "B", "A", "B", "B", "B"), # business line
+                  Loss = c(1.2, 1.1, 0.6, 0.8, 0.4, 0.2, 0.3))) # loss in M USD, say
+str(df) # => first two columns are factors
+is.matrix(df) # => indeed no matrix
+as.matrix(df) # coercion to a character matrix
+data.matrix(df) # coercion to a numeric matrix (factor are replaced according to their level index)
+
+## Computing maximal losses per group for two different groupings
+## Version 1 (leads a table structure with all combinations of selected variables):
+tapply(df[,"Loss"], df[,"Year"], max) # maximal loss per Year
+tapply(df[,"Loss"], df[,c("Year", "Line")], max) # maximal loss per Year-Line combination
+## Version 2 (omits NAs):
+aggregate(Loss ~ Year,        data = df, FUN = max) # 'aggregate' Loss per Year with max()
+aggregate(Loss ~ Year * Line, data = df, FUN = max)
+
+## Playing with the data frame
+(fctr <- factor(paste0(df$Year,".",df$Line))) # build a 'Year.Line' factor
+(grouped.Loss <- split(df$Loss, f = fctr)) # group the losses according to fctr
+sapply(grouped.Loss, FUN = max) # maximal loss per group
+sapply(grouped.Loss, FUN = length) # number of losses per group; see more on *apply() later
+(ID <- unlist(sapply(grouped.Loss, FUN = function(x) seq_len(length(x))))) # unique ID per loss group
+(df. <- cbind(df, ID = ID)) # paste unique ID per loss group to 'df'
+(df.wide <- reshape(df., # reshape from 'long' to 'wide' format
+                    v.names = "Loss", # variables to be displayed as entries in 2nd dimension
+                    idvar = c("Year", "Line"), # variables to be kept in long format
+                    timevar = "ID", # unique ID => wide columns have headings of the form <Loss.ID>
+                    direction = "wide"))
+```
+
+```{r}
+## Lists
+is.list(df) # => data frames are indeed just lists
+
+## Lists are the most general data structures in R in the sense that they
+## can contain pretty much everything, e.g., lists themselves or functions
+## or both... (and of different lengths)
+(L <- list(group = LETTERS[1:4], value = 1:2, sublist = list(10, function(x) x+1)))
+
+## Extract elements from a list
+## Version 1:
+L[[1]] # get first element of the list
+L[[3]][[1]] # get first element of the sub-list
+## Version 2: use '$'
+L$group
+L$sublist[[1]]
+## Version 3 (most readable and fail-safe): use the provided names
+L[["group"]]
+L[["sublist"]][[1]]
+
+## Change a name
+names(L)
+names(L)[names(L) == "sublist"] <- "sub.list"
+str(L)
+
+## Watch out
+L[[1]] # the first component
+L[1] # the sub-list containing the first component of L
+class(L[[1]]) # character
+class(L[1]) # list
+```
+
+
+### Statistical functionality
+
+### Common Probability Distribution Functions in R 
+Name Probability Density Cumulative Distribution Quantile 
+
+Normal dnorm(Z,mean,sd) pnorm(Z,mean,sd) qnorm(Q,mean,sd) 
+
+Poisson dnorm(N,lambda) pnorm(N,lambda) qnorm(Q,lambda)
+
+Binomial dbinom(N,size,prob) pbinom(N,size,prob) qbinom(Q,size,prob)
+
+Exponential dexp(N,rate) pexp(N,rate) qexp(Q,rate)
+
+
+```{r}
+## Probability distributions (d/p/q/r*)
+dexp(1, rate = 2) # density f(x) = 2*exp(-2*x)
+pexp(1, rate = 2) # distribution function F(x) = 1-exp(-2*x)
+qexp(0.3, rate = 2) # quantile function F^-(y) = -log(1-y)/2
+rexp(5,   rate = 2) # draw random variates from Exp(2)
+
+```
+
+### Common distribution
+
+```{r}
+z<-seq(-3.5,3.5,0.1)  # 71 points from -3.5 to 3.5 in 0.1 steps
+dStandardNormal <- data.frame(Z=z, 
+                               Density=dnorm(z, mean=0, sd=1),
+                               Distribution=pnorm(z, mean=0, sd=1))  
+
+head(dStandardNormal)
+
+  
+plot(dStandardNormal$Z, dStandardNormal$Density)
+curve(dnorm, from = min(Z), to = max(Z), add = TRUE, col = "red")
+  
+plot(dStandardNormal$Z, dStandardNormal$Distribution)
+curve(pnorm, from = min(Z), to = max(Z), add = TRUE, col = "red") 
+
+```
+
+### Random number generation
+
+```{r}
+#.Random.seed # in a new R session, this object does not exist (until RNs are drawn)
+
+## Generate from N(0,1)
+(X <- rnorm(2)) # generate two N(0,1) random variates
+str(.Random.seed) # encodes types of random number generators (RNGs) and the seed
+
+## How can we make sure to obtain the same results (for *reproducibility*?)
+(Y <- rnorm(2)) # => another two N(0,1) random variates
+all.equal(X, Y) # obviously not equal (here: with probability 1)
+
+## Set a 'seed' so that computations are reproducible
+set.seed(271) # with set.seed() we can set the seed
+X <- rnorm(2) # draw two N(0,1) random variates
+set.seed(271) # set the same seed again
+Y <- rnorm(2) # draw another two N(0,1) random variates
+all.equal(X, Y) # => TRUE
+set.seed(271)
+Y <- rnorm(3)
+all.equal(X, Y[1:2])
+```
+
+### Law of Large Numbers (LLN)
+
+```{r}
+## Data from a distribution
+n <- 1e4 # sample size = number of iid random variables
+lambda <- 2 # parameter theta
+#set.seed(999) # set seed for reproducibility
+X <- rexp(n, rate = lambda) # generate data
+
+## Building cumulative averages (X_1/1, (X_1+X_2)/2, (X_1+X_2+X_3)/3,...)
+Xn <- cumsum(X)/(1:n)
+
+## Plot (this one path of the stochastic process (bar{X}_n)_{n=1}^{infty})
+plot(1:n, Xn, type = "l", log = "x", ylab = "",
+     xlab = expression("Number n of iid random variables"~(X[i])[i == 1]^n),
+     main = substitute(bold("Law of Large Numbers for Exp("*lambda*") data"), list(th. = th)))
+mu <- 1/lambda # true mean
+abline(h = mu, col = "royalblue3")
+```
+
+
+```{r}
+```
+
+### Try LLN for a fair coin or unfair coin
+
+```{r}
+
+```
+
+### Central limit theorem using Poisson distribution (homework) 
+
+```{r}
+
+```
+
+
+```{r}
+set.seed(123)
+n <- 1e4 # sample size = number of iid random variables
+lambda <- 1 # parameter theta
+#set.seed(999) # set seed for reproducibility
+X <- rpois(n, lambda) # generate data
+
+## Build blocks of data 
+m <- 500 # number of blocks (each of size n/m )
+X1 <- split(X, f = rep(1:m, each = floor(n/m))) # split data into blocks 
+length(X1)
+
+## Location-scale transform blocked sums via sqrt(n) * (bar{X}_n - mu) / sigma
+## = (S_n - n * mu) / (sqrt(n) * sigma)
+
+mu <- lambda # true mean
+sig2 <- lambda # true variance
+Z <- sapply(X1, function(x) (sum(x) - length(x) * mu) / (sqrt(length(x) * sig2))) # standardize by mean(<sum>) and sd(<sum>)
+
+## Histogram with overlaid densities
+dens <- density(Z)
+hist(Z, probability = TRUE, ylim = c(0, max(dnorm(0), dens$y)), breaks = 10,
+     main = substitute(bold("Central Limit Theorem for Poisson("*lambda.*") data"),
+                       list(lambda. = lambda)), xlab = expression("Realizations of"~sqrt(n)*(bar(X)[n]-mu)/sigma))
+
+lines(dens, col = "blue", lwd=3) # overlaid density estimate
+
+curve(dnorm, from = min(Z), to = max(Z), add = TRUE, col = "orange", lwd=3) # overlaid N(0,1) density
+
+legend("topright", lty = c(1,1), col = c("blue", "orange"), bty = "n",
+       legend = c("Density estimate", "N(0,1) density"))
+
+```
+
+
+```{r}
+dim(X1)
+```
+
+

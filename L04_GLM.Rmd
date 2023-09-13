@@ -1,0 +1,164 @@
+---
+title: "R GLM - case studies 1) binary diabetes data diabetes 2) count data England covid-19"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(sf) 
+library(sp) 
+library(lubridate)
+library(FRK)
+library(mlbench)
+
+```
+
+## Predict diabetes
+
+```{r}
+# load R built in data
+data(PimaIndiansDiabetes)
+PimaIndiansDiabetes
+```
+```{r}
+logit_m = glm(diabetes ~ . + pressure*glucose, data = PimaIndiansDiabetes, family = binomial(link = "logit"))
+logit_m %>% summary()
+
+```
+
+### The *null deviance* tells us how well the response variable can be predicted by a model with only an intercept term.
+
+### The *residual deviance* tells us how well the response variable can be predicted by a model with p predictor variables. The lower the value, the better the model is able to predict the value of the response variable.
+
+
+
+
+## Predict covid cases in England
+
+```{r}
+# read uk local authority boundary shapefile
+utla_shp <- st_read("data/ons_utla.shp") 
+
+# read census and IMD data
+censusimd <- read_csv("data/2011census_2019imd_utla.csv")
+
+# read uk covid data 2020-2021
+covid19 <- read_csv("data/covid19_cases.csv")
+head(covid19, 10)
+
+```
+
+
+
+```{r}
+covid19 <- read_csv("data/covid19_cases.csv")
+
+# join dfs
+covid19_spt <- left_join(utla_shp, covid19, by = c("ctyu19nm" = "Area.name"))
+
+# select pop data
+pop <- censusimd %>% dplyr::select("UTLA19NM", "Residents", "Longterm_sick_or_disabled")
+# join dfs
+covid19_spt <- left_join(covid19_spt, pop,
+                         by = c("ctyu19nm" = "UTLA19NM"))
+
+# rate of new covid-19 infection
+covid19_spt$n_covid19_r <- round( (covid19_spt$Daily.lab.confirmed.cases / covid19_spt$Residents) * 100000)
+
+# risk of cumulative covid-19 infection
+covid19_spt$c_covid19_r <- round( (covid19_spt$Cumulative.lab.confirmed.cases / covid19_spt$Residents) * 100000)
+
+# share of population in long-term illness 
+covid19_spt <- covid19_spt %>% mutate(
+ lt_illness = Longterm_sick_or_disabled / Residents
+)
+
+# selecting variables
+reg_df <- covid19_spt %>%
+  dplyr::select(n_covid19_r, long, lat, date, lt_illness)
+
+reg_df <- reg_df%>% st_drop_geometry()
+reg_df
+
+```
+
+```{r}
+eq1 <- n_covid19_r ~ .
+lm_m <- lm(formula = eq1, data = reg_df)
+lm_m %>% summary()
+```
+
+```{r}
+# estimate a poisson model
+poisson_m1 <- glm(eq1, family = poisson("log"), # Poisson + log link
+                data = reg_df)
+poisson_m1 %>% summary()
+```
+
+```{r}
+# overdispersed poisson example
+set.seed(999)
+hist(Y1 <- rpois(1000, 2), breaks=seq(0, 30), col="orange", freq=F, ylim=c(0, 0.45), las=1, main="", xlab="Y")
+hist(Y2 <- rpois(1000, 2 * exp( rnorm(1000, mean=0, sd=1))), add=T, freq=F, breaks=seq(0, 100))
+legend("right", legend=c("Poisson", "overdispersed Poisson"), pch=15, col=c("orange", "grey50"), bty="n", cex=1.5)
+```
+
+
+
+## Poisson model assume mean = variance, but the results suggest an overdispersion.
+
+```{r}
+performance::check_overdispersion(poisson_m1)
+```
+
+
+
+```{r}
+# estimate a quasipoisson model
+qpoisson_m1 <- glm(eq1,
+                family = quasipoisson("log"), # QuasiPoisson + log link
+                data = reg_df)
+qpoisson_m1 %>% summary()
+```
+
+## The quasi-Poisson assumes that the variance is proportional to the mean (the over-dispersion parameter). The model only changes the standard error of the estimated coefficients, but does not improve in terms of residual deviance.
+
+
+
+```{r}
+# estimate a negative binomial model
+
+eq2 <- n_covid19_r ~ . + long*lat + lt_illness*long 
+
+nb_m1 <- glm.nb(eq2, data = reg_df)
+nb_m1 %>% summary()
+```
+
+# The NBM leads to a major improvement (reduction in residual deviance).
+
+
+# Additional info: spatio decomposition
+```{r}
+# build basis functions
+G <- auto_basis(data = reg_df[,c("long","lat")] %>%
+                       SpatialPoints(),           
+                nres = 1,                         
+                type = "Gaussian")   
+
+# basis functions evaluated at data locations are then the covariates
+S <- eval_basis(basis = G,                       # basis functions
+                s = reg_df[,c("long","lat")] %>%
+                     as.matrix()) %>%            
+     as.matrix()                                 
+colnames(S) <- paste0("B", 1:ncol(S)) 
+
+reg_df_st <- cbind(reg_df, S)
+reg_df_st
+
+```
+
+# Homework: visualize spatial components B1-B9 and do GLM by including B1-B9
+
+
+
+

@@ -1,0 +1,161 @@
+---
+title: "Introduction to R - Basics"
+output: html_notebook
+---
+
+```{r}
+## Simple manipulations
+1/2
+1/0 # in R, Inf and -Inf exist and R can often deal with them correctly
+1/-0
+0/0 # ... also NaN = 'not a number' is available; 0/0, 0*Inf, Inf-Inf lead to NaN
+x <- 0/0 # store the result in 'x'
+class(x) # the class/type of 'x'; => NaN is still of mode 'numeric'
+class(Inf) # Inf is of mode 'numeric' (although mathematically not a number); helpful in optimizations
+class(NULL) # the R NULL object (a reserved object often used as default argument of functions or to represent special cases or undefined return values)
+is.null(NULL)
+
+```
+
+```{r}
+## Vectors (data structure which contains objects of the same mode)
+x <- c(1, 2, 3, 4, 5) # numeric vector
+x # print method
+(y <- 1:5) # another way of creating such a vector (and *printing* the output via '()')
+(z <- seq_len(5)) # and another one (see below for the 'why')
+z[6] <- 6 # append to a vector (better than z <- c(z, 6)); (much) more comfortable than in C/C++
+z
+
+## Note: We can check whether the R objects are the same
+x == y # component wise numerically equal
+identical(x, y) # identical as objects? why not?
+class(x) # => x is a *numeric* vector
+class(y) # => y is an *integer* vector
+all.equal(x, y) # numerical equality; see argument 'tolerance'
+identical(x, as.numeric(y)) 
+
+```
+
+```{r}
+## Understanding all.equal()
+all.equal # only see arguments 'target', 'current', no code (S3 method)
+methods(all.equal) # => all.equal.numeric applies here
+str(all.equal.numeric) # => 'tolerance' argument; str() prints the *str*ucture of an object
+sqrt(.Machine$double.eps) # default tolerance 1.490116e-08 > 1e-8
+all.equal(1e-7, 0) # reports for arguments (target, current) the error mean(abs(current - target)) / mean(abs(target)); here: relative error |0-1e-7|/1e-7 = 1
+all.equal(0, 1e-7) # relative error "|1e-7-0|/0" => absolute error is used instead; see ?all.equal
+
+```
+
+```{r}
+## Numerically not exactly the same
+x <- var(1:4)
+y <- sd(1:4)^2
+all.equal(x, y) # numerical equality
+x == y # ... but not exactly
+x - y # numerically not 0
+## See also https://cran.r-project.org/doc/FAQ/R-FAQ.html#Why-doesn_0027t-R-think-these-numbers-are-equal_003f
+```
+
+```{r}
+## Floating point numbers
+1.7e+308 # = 1.7 * 10^308 (scientific notation)
+1.8e+308 # => there is a largest positive (floating point, not real) number
+2.48e-324 # near 0
+2.47e-324 # truncation to 0 => there is a smallest positive (floating point) number
+1 + 2.22e-16 # near 1
+1 + 2.22e-16 == 1 # ... but actually isn't (yet)
+1 + 1.11e-16 == 1 # indistinguishable from 1 (= 1 + 2.22e-16/2)
+## Note: The grid near 0 is much finer than near 1
+
+## Remark: These phenomena are better understood with the IEEE 754 standard
+##         for floating point arithmetic.
+str(.Machine) # lists important specifications of floating point numbers
+.Machine$double.eps # smallest positive number x s.t. 1 + x != 1
+.Machine$double.xmin # smallest normalized number > 0
+.Machine$double.xmax # largest normalized number
+
+```
+
+```{r}
+## Watch out
+n <- 0
+1:n # not the empty sequence but c(1, 0); caution in 'for loops': for(i in 1:n) ...!
+seq_len(n) # better: => empty sequence
+seq_along(c(3, 4, 2)) # 1:3; helpful to 'go along' objects
+
+## Watch out
+1:3-1 # ':' has higher priority; note also: the '-1' is recycled to the length of 1:3
+1:(3-1)
+
+print('for loop testing...')
+for(i in 1:(3-1)){
+  print(i)
+}
+
+```
+
+```{r}
+## Some functions (if functions exist, use them!)
+(x <- c(3, 4, 2))
+length(x) # as seen above
+rev(x) # change order
+sort(x) # sort in increasing order
+sort(x, decreasing = TRUE) # sort in decreasing order
+ii <- order(x) # create the indices which sort x
+x[ii] # => sorted
+log(x) # component-wise logarithms
+x^2 # component-wise squares
+sum(x) # sum all numbers
+cumsum(x) # compute the *cumulative* sum
+prod(x) # multiply all numbers
+seq(1, 7, by = 2) # 1, 3, 5, 7
+rep(1:3, each = 3, times = 2) # 1 1 1 2 2 2 3 3 3  1 1 1 2 2 2 3 3 3
+tail(x, n = 1) # get the last element of a vector
+head(x, n = -1) # get all but the last element
+```
+
+```{r}
+## Logical vectors
+(ii <- x >= 3) # logical vector indicating whether each element of x is >= 3
+x[ii] # use that vector to index x => pick out all values of x >= 3
+!ii # negate the logical vector
+all(ii) # check whether all indices are TRUE (whether all x >= 3)
+any(ii) # check whether any indices are TRUE (whether any x >= 3)
+ii |  !ii # vectorized logical OR (is, componentwise, any entry TRUE?)
+ii &  !ii # vectorized logical AND (are, componentwise, both entries TRUE?)
+ii || !ii # logical OR applied to all values (is entry any TRUE?)
+ii && !ii # logical AND applied to all values (are all entries TRUE?)
+3 * c(TRUE, FALSE) # TRUE is coerced to 1, FALSE to 0
+class(NA) # NA = 'not available' is 'logical' as well (used for missing data)
+z <- 1:3; z[5] <- 4 # two statements in one line (';'-separated)
+z # => 4th element 'not available' (NA)
+(z <- c(z, NaN, Inf)) # append NaN and Inf
+class(z) # still numeric (although is.numeric(NA) is FALSE)
+is.na(z) # check for NA or NaN
+is.nan(z) # check for just NaN
+is.infinite(z) # check for +/-Inf
+z[(!is.na(z)) &  is.finite(z) &  z >= 2] # pick out all finite numbers >= 2
+z[(!is.na(z)) && is.finite(z) && z >= 2] # watch out; used to fail; R >= 3.6.0: z[TRUE] => z
+```
+
+```{r}
+## Matching in indices or names
+match(1:4, table = 3:5) # positions of elements of first in second vector (or NA)
+1:4 %in% 3:5 # logical vector
+which(1:4 %in% 3:5) # positions of TRUE in logical vector
+which(3:5 %in% 1:4) # close to match() but without NAs
+na.omit(match(1:4, table = 3:5)) # same (apart from attributes)
+## Note: na.fill() from package 'zoo' is helpful in filling NAs in time series
+
+## Character vectors
+x <- "apple"
+y <- "orange"
+(z <- paste(x, y)) # paste together; use sep = "" or paste0() to paste without space
+paste(1:3, c(x, y), sep = " - ") # recycling ("apple" appears again)
+
+## Named vectors
+(x <- c("a" = 3, "b" = 2)) # named vector of class 'numeric'
+x["b"] # indexing elements by name (useful!)
+x[["b"]] # drop the name
+```
